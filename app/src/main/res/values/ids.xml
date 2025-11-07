@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="sceneView" type="id"/>
+    <item name="cameraView" type="id"/>
+    <item name="btnVoice" type="id"/>
+    <item name="main" type="id"/>
+</resources>
