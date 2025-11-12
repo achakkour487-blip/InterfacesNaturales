@@ -16,6 +16,8 @@ public class ARSceneManager {
     private Node tempNode;
     private Node puertaNode;
 
+    private final int defaultColor = Color.BLACK; // color de fondo por defecto
+
     public ARSceneManager(SceneView sceneView, Lifecycle lifecycle) {
         this.sceneView = sceneView;
         this.lifecycle = lifecycle;
@@ -23,27 +25,24 @@ public class ARSceneManager {
     }
 
     private void setupScene() {
-        // --- Nodo luz ---
         luzNode = new Node(sceneView.getEngine(), 1);
         luzNode.setPosition(new Float3(0f, 0f, -1f));
         luzNode.setScale(0.2f);
 
-        // --- Nodo temperatura ---
         tempNode = new Node(sceneView.getEngine(), 2);
         tempNode.setPosition(new Float3(0.4f, 0f, -1f));
         tempNode.setScale(0.2f);
 
-        // --- Nodo puerta ---
         puertaNode = new Node(sceneView.getEngine(), 3);
         puertaNode.setPosition(new Float3(-0.4f, 0f, -1f));
         puertaNode.setScale(0.2f);
 
-        // Agregar nodos a la escena
         sceneView.addChildNode(luzNode);
         sceneView.addChildNode(tempNode);
         sceneView.addChildNode(puertaNode);
     }
 
+    // Resalta un target cambiando el color de fondo
     public void highlight(String target) {
         int color;
         switch (target) {
@@ -51,15 +50,24 @@ public class ARSceneManager {
                 color = Color.YELLOW;
                 break;
             case "temperatura":
-                color = Color.RED;
+                color = Color.MAGENTA;
                 break;
             case "puerta":
-                color = Color.GREEN;
+                color = Color.BLUE;
                 break;
             default:
                 color = Color.GRAY;
         }
-
         sceneView.setBackgroundColor(color);
+    }
+
+    // “Apaga” cualquier highlight, vuelve al fondo por defecto
+    public void unhighlight() {
+        sceneView.setBackgroundColor(defaultColor);
+    }
+
+    // Resalta la puerta abierta o cerrada
+    public void highlightDoor(boolean abierta) {
+        sceneView.setBackgroundColor(abierta ? Color.GREEN : Color.RED);
     }
 }
