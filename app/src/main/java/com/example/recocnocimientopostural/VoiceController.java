@@ -6,9 +6,9 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.content.Intent;
 import java.util.ArrayList;
 import java.util.Locale;
-import android.content.Intent;
 
 public class VoiceController {
 
@@ -17,8 +17,15 @@ public class VoiceController {
     private Context context;
     private VoiceCallback callback;
 
+    // Callback temporal para el próximo comando
+    private NextCommandCallback nextCommandCallback;
+
     public interface VoiceCallback {
         void onCommandRecognized(String command);
+    }
+
+    public interface NextCommandCallback {
+        void onCommand(String command);
     }
 
     public VoiceController(Context context, VoiceCallback callback) {
@@ -42,11 +49,19 @@ public class VoiceController {
             @Override public void onError(int error) {}
             @Override public void onPartialResults(Bundle partialResults) {}
             @Override public void onEvent(int eventType, Bundle params) {}
+
             @Override
             public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches != null && !matches.isEmpty()) {
-                    callback.onCommandRecognized(matches.get(0).toLowerCase());
+                    String command = matches.get(0).toLowerCase();
+
+                    if (nextCommandCallback != null) {
+                        nextCommandCallback.onCommand(command);
+                        nextCommandCallback = null; // Limpiamos para no llamar varias veces
+                    } else {
+                        callback.onCommandRecognized(command);
+                    }
                 }
             }
         });
@@ -71,5 +86,9 @@ public class VoiceController {
         if (recognizer != null) {
             recognizer.destroy();
         }
+    }
+
+    public void setNextCommandCallback(NextCommandCallback callback) {
+        this.nextCommandCallback = callback;
     }
 }

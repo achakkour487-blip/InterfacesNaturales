@@ -1,85 +1,100 @@
 package com.example.recocnocimientopostural;
 
+import android.annotation.SuppressLint;
+import android.media.Image;
 
-import android.media.Image; // Importar la clase Image
 import androidx.annotation.NonNull;
-import androidx.annotation.OptIn;
 import androidx.camera.core.ExperimentalGetImage;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
-// ❗️ IMPORTAR ESTO
-
 
 import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.pose.Pose;
-import com.google.mlkit.vision.pose.PoseDetection;
-import com.google.mlkit.vision.pose.PoseDetector;
-import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions;
-import com.google.mlkit.vision.pose.PoseLandmark;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
+import com.google.mlkit.vision.face.FaceLandmark;
 
+import java.util.List;
 
-@OptIn(markerClass = ExperimentalGetImage.class) // ❗️ AÑADIR ESTA LÍNEA ENCIMA DE LA CLASE
+@ExperimentalGetImage
 public class PoseDetectionHelper implements ImageAnalysis.Analyzer {
 
-
     public interface GestureCallback {
-        void onHeadTiltLeft();
-        void onHeadTiltRight();
-        void onShoulderRaise();
+        void onSmileDetected();
+        void onEyesClosedDetected();
+        void onTongueOutDetected();
     }
 
-
     private final GestureCallback callback;
-    private final PoseDetector detector;
-
+    private final FaceDetector detector;
 
     public PoseDetectionHelper(GestureCallback callback) {
         this.callback = callback;
-        AccuratePoseDetectorOptions options =
-                new AccuratePoseDetectorOptions.Builder()
-                        .setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE)
-                        .build();
-        detector = PoseDetection.getClient(options);
+
+        FaceDetectorOptions options = new FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                .build();
+
+        detector = FaceDetection.getClient(options);
     }
 
-
-    @OptIn(markerClass = ExperimentalGetImage.class)
+    @SuppressLint("UnsafeOptInUsageError")
     @Override
     public void analyze(@NonNull ImageProxy imageProxy) {
-        Image mediaImage = imageProxy.getImage(); // Obtener la imagen una vez
-
-
+        Image mediaImage = imageProxy.getImage();
         if (mediaImage == null) {
             imageProxy.close();
             return;
         }
 
-
-        InputImage image = InputImage.fromMediaImage(
-                mediaImage, // Usar la variable
-                imageProxy.getImageInfo().getRotationDegrees()
-        );
-
+        InputImage image = InputImage.fromMediaImage(mediaImage, imageProxy.getImageInfo().getRotationDegrees());
 
         detector.process(image)
-                .addOnSuccessListener(this::detectGestures)
+                .addOnSuccessListener(faces -> detectGestures(faces))
                 .addOnCompleteListener(task -> imageProxy.close());
     }
 
+    private void detectGestures(List<Face> faces) {
+        for (Face face : faces) {
+            // 1️⃣ Ojos cerrados
+            if (face.getLeftEyeOpenProbability() != null && face.getRightEyeOpenProbability() != null) {
+                float left = face.getLeftEyeOpenProbability();
+                float right = face.getRightEyeOpenProbability();
+                if (left < 0.4 && right < 0.4) {
+                    callback.onEyesClosedDetected();
+                    return;
+                }
+            }
 
-    private void detectGestures(Pose pose) {
-        if (pose.getAllPoseLandmarks().isEmpty()) return;
+            // 2️⃣ Sonrisa
+            if (face.getSmilingProbability() != null) {
+                float smile = face.getSmilingProbability();
+                if (smile > 0.7) {
+                    callback.onSmileDetected();
+                    return;
+                }
+            }
 
+            // 3️⃣ Lengua afuera / boca abierta
+            FaceLandmark mouthLeft = face.getLandmark(FaceLandmark.MOUTH_LEFT);
+            FaceLandmark mouthRight = face.getLandmark(FaceLandmark.MOUTH_RIGHT);
+            FaceLandmark noseBase = face.getLandmark(FaceLandmark.NOSE_BASE);
 
-        float headX = pose.getPoseLandmark(PoseLandmark.NOSE).getPosition().x;
-        float shoulderLeftX = pose.getPoseLandmark(PoseLandmark.LEFT_SHOULDER).getPosition().x;
-        float shoulderRightX = pose.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER).getPosition().x;
-        float shoulderLeftY = pose.getPoseLandmark(PoseLandmark.LEFT_SHOULDER).getPosition().y;
-        float shoulderRightY = pose.getPoseLandmark(PoseLandmark.RIGHT_SHOULDER).getPosition().y;
+            if (mouthLeft != null && mouthRight != null && noseBase != null) {
+                float mouthWidth = mouthRight.getPosition().x - mouthLeft.getPosition().x;
+                float mouthHeight = Math.abs(noseBase.getPosition().y - ((mouthLeft.getPosition().y + mouthRight.getPosition().y) / 2));
+                if (mouthHeight / mouthWidth > 0.6f) { // Ajusta el umbral según tu prueba
+                    callback.onTongueOutDetected();
+                    return;
+                }
+            }
+        }
+    }
 
-
-        if (headX < shoulderLeftX - 30) callback.onHeadTiltLeft();
-        if (headX > shoulderRightX + 30) callback.onHeadTiltRight();
-        if (shoulderRightY < shoulderLeftY - 40) callback.onShoulderRaise();
+    public void close() {
+        detector.close();
     }
 }
